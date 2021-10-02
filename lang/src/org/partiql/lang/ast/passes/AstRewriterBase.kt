@@ -15,6 +15,7 @@
 package org.partiql.lang.ast.passes
 
 import org.partiql.lang.ast.*
+import org.partiql.lang.domains.PartiqlAst
 import org.partiql.lang.util.checkThreadInterrupted
 
 /**
@@ -46,6 +47,7 @@ open class AstRewriterBase : AstRewriter {
             is SearchedCase      -> rewriteSearchedCase(node)
             is Struct            -> rewriteStruct(node)
             is Seq               -> rewriteSeq(node)
+            is With              -> rewriteWith(node)
             is Select            -> rewriteSelect(node)
             is Parameter         -> rewriteParameter(node)
             is DataManipulation  -> rewriteDataManipulation(node)
@@ -134,6 +136,42 @@ open class AstRewriterBase : AstRewriter {
             node.op,
             node.args.map { rewriteExprNode(it) },
             rewriteMetas(node))
+    }
+
+    open fun rewriteWith(withExpr: With) : ExprNode =
+        innerRewriteWith(withExpr)
+
+    protected open fun innerRewriteWith(withExpr: With) : With {
+        val bindings = rewriteWithBindings(withExpr.bindings)
+        val select = rewriteExprNode(withExpr.select)
+        val metas = rewriteMetas(withExpr)
+        return With(
+            hierarchy = withExpr.hierarchy,
+            bindings = bindings,
+            select =  select,
+            metas = metas
+        )
+    }
+
+    open fun rewriteWithBindings(withBindings: WithBindings) =
+        innerRewriteWithBindings(withBindings)
+
+    protected open fun innerRewriteWithBindings(withBindings: WithBindings): WithBindings {
+        val bindings = withBindings.bindings.map { rewriteWithBinding(it) }
+        return WithBindings(
+            bindings = bindings
+        )
+    }
+
+    open fun rewriteWithBinding(withBinding: WithBinding) =
+        innerRewriteWithBinding(withBinding)
+
+    protected open fun innerRewriteWithBinding(withBinding: WithBinding): WithBinding {
+        return WithBinding(
+            materialization = withBinding.materialization,
+            select = rewriteExprNode(withBinding.select),
+            name = rewriteSymbolicName(withBinding.name)
+        )
     }
 
     open fun rewriteSelect(selectExpr: Select): ExprNode =

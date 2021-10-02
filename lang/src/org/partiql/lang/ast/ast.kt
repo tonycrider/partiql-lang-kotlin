@@ -70,31 +70,34 @@ sealed class ExprNode : AstNode(), HasMetas {
         // This looks like duplication but really isn't: each branch executes a different compiler-generated `copy` function.
         val metas = newMetas ?: this.metas
         return when (this) {
-            is Literal           -> {
+            is Literal -> {
                 copy(metas = metas)
             }
-            is LiteralMissing    -> {
+            is LiteralMissing -> {
                 copy(metas = metas)
             }
             is VariableReference -> {
                 copy(metas = metas)
             }
-            is NAry              -> {
+            is NAry -> {
                 copy(metas = metas)
             }
-            is CallAgg           -> {
+            is CallAgg -> {
                 copy(metas = metas)
             }
-            is Typed             -> {
+            is Typed -> {
                 copy(metas = metas)
             }
-            is Path              -> {
+            is Path -> {
                 copy(metas = metas)
             }
-            is SimpleCase        -> {
+            is SimpleCase -> {
                 copy(metas = metas)
             }
-            is SearchedCase      -> {
+            is SearchedCase -> {
+                copy(metas = metas)
+            }
+            is With -> {
                 copy(metas = metas)
             }
             is Select -> {
@@ -103,28 +106,28 @@ sealed class ExprNode : AstNode(), HasMetas {
             is Struct -> {
                 copy(metas = metas)
             }
-            is Seq               -> {
+            is Seq -> {
                 copy(metas = metas)
             }
-            is DataManipulation  -> {
+            is DataManipulation -> {
                 copy(metas = metas)
             }
-            is CreateTable       -> {
+            is CreateTable -> {
                 copy(metas = metas)
             }
-            is CreateIndex       -> {
+            is CreateIndex -> {
                 copy(metas = metas)
             }
-            is DropTable         -> {
+            is DropTable -> {
                 copy(metas = metas)
             }
-            is DropIndex         -> {
+            is DropIndex -> {
                 copy(metas = metas)
             }
-            is Parameter       -> {
+            is Parameter -> {
                 copy(metas = metas)
             }
-            is Exec            -> {
+            is Exec -> {
                 copy(metas = metas)
             }
             is DateTimeType.Date -> {
@@ -173,24 +176,27 @@ data class VariableReference(
      * Respects case sensitivity when comparing against another [VariableReference].
      */
     override fun equals(other: Any?): Boolean =
-        if(other !is VariableReference) { false }
-        else {
+        if (other !is VariableReference) {
+            false
+        } else {
             id.compareTo(other.id, case == CaseSensitivity.INSENSITIVE) == 0
-            && case             == other.case
-            && scopeQualifier   == other.scopeQualifier
-            && metas            == other.metas
+                    && case == other.case
+                    && scopeQualifier == other.scopeQualifier
+                    && metas == other.metas
         }
 
     override fun hashCode(): Int =
         Arrays.hashCode(
             arrayOf(
-                when(case) {
+                when (case) {
                     CaseSensitivity.SENSITIVE -> id
                     CaseSensitivity.INSENSITIVE -> id.toLowerCase()
                 },
                 case,
                 scopeQualifier,
-                metas))
+                metas
+            )
+        )
 
     override val children: List<AstNode> = listOf()
 }
@@ -200,8 +206,8 @@ data class VariableReference(
  * by the evaluation environment.
  */
 data class Parameter(
-        val position: Int,
-        override val metas: MetaContainer
+    val position: Int,
+    override val metas: MetaContainer
 ) : ExprNode() {
     override val children: List<AstNode> = listOf()
 }
@@ -275,7 +281,8 @@ data class SimpleCase(
     val valueExpr: ExprNode,
     val whenClauses: List<SimpleCaseWhen>,
     val elseExpr: ExprNode?,
-    override val metas: MetaContainer) : ExprNode() {
+    override val metas: MetaContainer
+) : ExprNode() {
     override val children: List<AstNode> = listOf(valueExpr) + whenClauses + listOfNotNull(elseExpr)
 }
 
@@ -345,11 +352,12 @@ data class InsertValueOp(
     val value: ExprNode,
     val position: ExprNode?,
     val onConflict: OnConflict?
-): DataManipulationOperation(name = "insert_value") {
+) : DataManipulationOperation(name = "insert_value") {
     override val children: List<AstNode> = listOfNotNull(lvalue, value, position, onConflict)
 }
 
-data class OnConflict(val condition: ExprNode, val conflictAction: ConflictAction
+data class OnConflict(
+    val condition: ExprNode, val conflictAction: ConflictAction
 ) : AstNode() {
     override val children: List<AstNode> = listOf(condition)
 }
@@ -387,12 +395,13 @@ data class RemoveOp(val lvalue: ExprNode) : DataManipulationOperation(name = "re
 object DeleteOp : DataManipulationOperation(name = "delete") {
     override val children: List<AstNode> get() = emptyList()
 }
+
 fun DeleteOp() = DeleteOp
 
 /** Represents `RETURNING <returning element> [ ',' <returning element>]*` */
 data class ReturningExpr(
     val returningElems: List<ReturningElem>
-): AstNode() {
+) : AstNode() {
     override val children: List<AstNode> = returningElems
 }
 
@@ -400,7 +409,7 @@ data class ReturningExpr(
 data class ReturningElem(
     val returningMapping: ReturningMapping,
     val columnComponent: ColumnComponent
-): AstNode() {
+) : AstNode() {
     override val children: List<AstNode> = listOf(columnComponent)
 }
 
@@ -424,6 +433,32 @@ enum class ReturningMapping {
 }
 
 //********************************
+// With Expression
+//********************************
+data class With(
+    val hierarchy: QueryHierarchy = QueryHierarchy.ORDINARY,
+    val bindings: WithBindings,
+    val select: ExprNode,
+    override val metas: MetaContainer
+) : ExprNode() {
+    override val children: List<AstNode> = listOf(bindings, select)
+}
+
+data class WithBindings(
+    val bindings: List<WithBinding>
+) : AstNode() {
+    override val children: List<AstNode> = bindings
+}
+
+data class WithBinding(
+    val materialization: QueryMaterialization = QueryMaterialization.MATERIALIZED,
+    val select: ExprNode,
+    val name: SymbolicName
+) : AstNode() {
+    override val children: List<AstNode> = listOf(select)
+}
+
+//********************************
 // Select Expression
 //********************************
 
@@ -442,7 +477,8 @@ data class Select(
     val limit: ExprNode? = null,
     override val metas: MetaContainer
 ) : ExprNode() {
-    override val children: List<AstNode> = listOfNotNull(projection, from, fromLet, where, groupBy, having, orderBy, limit)
+    override val children: List<AstNode> =
+        listOfNotNull(projection, from, fromLet, where, groupBy, having, orderBy, limit)
 }
 
 //********************************
@@ -556,8 +592,8 @@ data class PathComponentExpr(val expr: ExprNode, val case: CaseSensitivity) : Pa
         private fun getStringValueIfCaseInsensitiveLiteral(component: PathComponentExpr): String? =
             when {
                 component.case == CaseSensitivity.INSENSITIVE
-                && component.expr is Literal
-                && component.expr.ionValue.type == IonType.STRING -> {
+                        && component.expr is Literal
+                        && component.expr.ionValue.type == IonType.STRING -> {
                     component.expr.ionValue.stringValue()
                 }
                 else -> null
@@ -581,7 +617,7 @@ data class PathComponentExpr(val expr: ExprNode, val case: CaseSensitivity) : Pa
                             myStringValue == null || otherStringValue == null ->
                                 // Only one of the components was a case insensitive literal, so they are not equal
                                 false
-                            else                                              ->
+                            else ->
                                 // Both components are case insensitive literals, perform case insensitive comparison
                                 myStringValue.equals(otherStringValue, true)
                         }
@@ -673,9 +709,9 @@ data class SelectListItemStar(override val metas: MetaContainer) : SelectListIte
  *   Note: `FromSource`s that are separated by commas are modeled as an INNER JOIN with a condition of `true`.
  */
 sealed class FromSource : AstNode() {
-    fun metas(): MetaContainer = when(this) {
-        is FromSourceExpr    -> this.expr.metas
-        is FromSourceJoin    -> this.metas
+    fun metas(): MetaContainer = when (this) {
+        is FromSourceExpr -> this.expr.metas
+        is FromSourceJoin -> this.metas
         is FromSourceUnpivot -> this.expr.metas
     }
 }
@@ -706,8 +742,8 @@ sealed class FromSourceLet : FromSource() {
     abstract val variables: LetVariables
 
     fun copy(newVariables: LetVariables): FromSourceLet =
-        when(this) {
-            is FromSourceExpr    -> this.copy(variables = newVariables)
+        when (this) {
+            is FromSourceExpr -> this.copy(variables = newVariables)
             is FromSourceUnpivot -> this.copy(variables = newVariables)
         }
 }
@@ -760,14 +796,14 @@ data class GroupBy(
     val grouping: GroupingStrategy,
     val groupByItems: List<GroupByItem>,
     val groupName: SymbolicName? = null
-): AstNode() {
+) : AstNode() {
     override val children: List<AstNode> = groupByItems
 }
 
 data class GroupByItem(
     val expr: ExprNode,
     val asName: SymbolicName? = null
-): AstNode() {
+) : AstNode() {
     override val children: List<AstNode> = listOf(expr)
 }
 
@@ -777,14 +813,14 @@ data class GroupByItem(
  */
 data class OrderBy(
     val sortSpecItems: List<SortSpec>
-): AstNode() {
+) : AstNode() {
     override val children: List<AstNode> = sortSpecItems
 }
 
 data class SortSpec(
     val expr: ExprNode,
     val orderingSpec: OrderingSpec
-): AstNode() {
+) : AstNode() {
     override val children: List<AstNode> = listOf(expr)
 }
 //********************************
@@ -795,7 +831,7 @@ data class SortSpec(
 data class StructField(
     val name: ExprNode,
     val expr: ExprNode
-): AstNode() {
+) : AstNode() {
     override val children: List<AstNode> = listOf(name, expr)
 }
 
@@ -845,7 +881,7 @@ enum class CaseSensitivity(private val symbol: String) {
     INSENSITIVE("case_insensitive");
 
     companion object {
-        fun fromSymbol(s: String) : CaseSensitivity = when (s) {
+        fun fromSymbol(s: String): CaseSensitivity = when (s) {
             "case_sensitive" -> SENSITIVE
             "case_insensitive" -> INSENSITIVE
             else -> throw IllegalArgumentException("Unrecognized CaseSensitivity $s")
@@ -856,6 +892,13 @@ enum class CaseSensitivity(private val symbol: String) {
 
 }
 
+enum class QueryHierarchy {
+    ORDINARY, RECURSIVE
+}
+
+enum class QueryMaterialization {
+    MATERIALIZED, NOT_MATERIALIZED
+}
 /** Indicates if all rows in a select query are to be returned or only distinct rows. */
 enum class SetQuantifier {
     ALL, DISTINCT
@@ -980,6 +1023,7 @@ enum class JoinOp {
 enum class GroupingStrategy {
     /** Represents `GROUP BY` (no partial). */
     FULL,
+
     /** Represents `GROUP PARTIAL BY`.*/
     PARTIAL
 }

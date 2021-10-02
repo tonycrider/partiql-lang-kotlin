@@ -2276,4 +2276,83 @@ class ParserErrorsTest : SqlParserTestBase() {
             Property.TOKEN_TYPE to TokenType.LITERAL,
             Property.TOKEN_VALUE to ion.newString("1999-1-31")))
 
+    @Test
+    fun expectedIdentForWithAliasWhenLeftParenEncountered() = checkInputThrowingParserException(
+        "WITH (SELECT",
+        ErrorCode.PARSE_EXPECTED_IDENT_FOR_ALIAS,
+        mapOf(
+            Property.LINE_NUMBER to 1L,
+            Property.COLUMN_NUMBER to 6L,
+            Property.TOKEN_TYPE to TokenType.LEFT_PAREN,
+            Property.TOKEN_VALUE to ion.newSymbol("(")))
+
+    @Test
+    fun expectedIdentForWithAliasWhenKeywordEncountered() = checkInputThrowingParserException(
+        "WITH SELECT",
+        ErrorCode.PARSE_EXPECTED_IDENT_FOR_ALIAS,
+        mapOf(
+            Property.LINE_NUMBER to 1L,
+            Property.COLUMN_NUMBER to 6L,
+            Property.TOKEN_TYPE to TokenType.KEYWORD,
+            Property.TOKEN_VALUE to ion.newSymbol("select")))
+
+    @Test
+    fun expectedIdentForWithAliasWhenLiteralEncountered() = checkInputThrowingParserException(
+        "WITH 123 SELECT",
+        ErrorCode.PARSE_EXPECTED_IDENT_FOR_ALIAS,
+        mapOf(
+            Property.LINE_NUMBER to 1L,
+            Property.COLUMN_NUMBER to 6L,
+            Property.TOKEN_TYPE to TokenType.LITERAL,
+            Property.TOKEN_VALUE to ion.newInt(123)))
+
+    @Test
+    fun expectedAsForWithWhenLeftParenEncountered() = checkInputThrowingParserException(
+        "WITH name (SELECT",
+        ErrorCode.PARSE_EXPECTED_AS_FOR_WITH,
+        mapOf(
+            Property.LINE_NUMBER to 1L,
+            Property.COLUMN_NUMBER to 11L,
+            Property.TOKEN_TYPE to TokenType.LEFT_PAREN,
+            Property.TOKEN_VALUE to ion.newSymbol("(")))
+
+    @Test
+    fun expectedQueryAfterLeftParen() = checkInputThrowingParserException(
+        "WITH name AS (DELETE",
+        ErrorCode.PARSE_UNEXPECTED_KEYWORD,
+        mapOf(
+            Property.LINE_NUMBER to 1L,
+            Property.COLUMN_NUMBER to 15L,
+            Property.TOKEN_TYPE to TokenType.KEYWORD,
+            Property.TOKEN_VALUE to ion.newSymbol("delete")))
+
+    @Test
+    fun expectedAsForWithWhenKeywordEncountered() = checkInputThrowingParserException(
+        "WITH name SELECT",
+        ErrorCode.PARSE_EXPECTED_AS_FOR_WITH,
+        mapOf(
+            Property.LINE_NUMBER to 1L,
+            Property.COLUMN_NUMBER to 11L,
+            Property.TOKEN_TYPE to TokenType.KEYWORD,
+            Property.TOKEN_VALUE to ion.newSymbol("select")))
+
+    @Test
+    fun expectedLeftParenAfterAs() = checkInputThrowingParserException(
+        "WITH name AS SELECT",
+        ErrorCode.PARSE_EXPECTED_LEFT_PAREN_AFTER_AS,
+        mapOf(
+            Property.LINE_NUMBER to 1L,
+            Property.COLUMN_NUMBER to 14L,
+            Property.TOKEN_TYPE to TokenType.KEYWORD,
+            Property.TOKEN_VALUE to ion.newSymbol("select")))
+
+    @Test
+    fun expectedLeftParenAfterAsWhenLiteralEncountered() = checkInputThrowingParserException(
+        "WITH name AS 123",
+        ErrorCode.PARSE_EXPECTED_LEFT_PAREN_AFTER_AS,
+        mapOf(
+            Property.LINE_NUMBER to 1L,
+            Property.COLUMN_NUMBER to 14L,
+            Property.TOKEN_TYPE to TokenType.LITERAL,
+            Property.TOKEN_VALUE to ion.newInt(123)))
 }

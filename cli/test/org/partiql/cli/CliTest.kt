@@ -14,12 +14,16 @@
 
 package org.partiql.cli
 
-import com.amazon.ion.system.*
-import org.partiql.lang.eval.*
-import org.junit.*
-import org.junit.Assert.*
-import org.partiql.lang.*
-import java.io.*
+import com.amazon.ion.system.IonSystemBuilder
+import org.junit.Assert.assertEquals
+import org.junit.Before
+import org.junit.Test
+import org.partiql.lang.CompilerPipeline
+import org.partiql.lang.eval.Bindings
+import org.partiql.lang.eval.EvaluationException
+import org.partiql.lang.eval.ExprValue
+import org.partiql.lang.eval.ExprValueFactory
+import java.io.ByteArrayOutputStream
 
 class CliTest {
     private val ion = IonSystemBuilder.standard().build()
@@ -32,9 +36,11 @@ class CliTest {
         output.reset()
     }
 
-    private fun makeCli(query: String,
-                        input: String, bindings: Bindings<ExprValue> = Bindings.empty(),
-                        outputFormat: OutputFormat = OutputFormat.ION_TEXT) =
+    private fun makeCli(
+        query: String,
+        input: String, bindings: Bindings<ExprValue> = Bindings.empty(),
+        outputFormat: OutputFormat = OutputFormat.ION_TEXT
+    ) =
         Cli(
             valueFactory,
             input.byteInputStream(Charsets.UTF_8),
@@ -42,7 +48,8 @@ class CliTest {
             outputFormat,
             compilerPipeline,
             bindings,
-            query)
+            query
+        )
 
     private fun Cli.runAndOutput(): String {
         run()
@@ -90,7 +97,11 @@ class CliTest {
 
     @Test
     fun withBinding() {
-        val subject = makeCli("SELECT v, d FROM bound_value v, input_data d", "{a: 1}", mapOf("bound_value" to "{b: 1}").asBinding())
+        val subject = makeCli(
+            "SELECT v, d FROM bound_value v, input_data d",
+            "{a: 1}",
+            mapOf("bound_value" to "{b: 1}").asBinding()
+        )
         val actual = subject.runAndOutput()
 
         assertAsIon("{v: {b: 1}, d: {a: 1}}", actual)
@@ -126,6 +137,7 @@ class CliTest {
         val subject = makeCli("SELECT * FROM input_data", "{a: 1} {b: 1}", outputFormat = OutputFormat.ION_TEXT)
         val actual = subject.runAndOutput()
 
-        assertEquals("{a:1}\n{b:1}\n", actual)
+        // The replace() call allows for line separator variations between Windows and Linux...
+        assertEquals("{a:1}\n{b:1}\n", actual.replace(System.lineSeparator(), "\n"))
     }
 }

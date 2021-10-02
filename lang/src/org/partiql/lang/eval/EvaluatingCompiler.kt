@@ -279,6 +279,7 @@ internal class EvaluatingCompiler(
             is Path              -> compilePath(expr)
             is Struct            -> compileStruct(expr)
             is Seq               -> compileSeq(expr)
+            is With              -> compileWith(expr)
             is Select            -> compileSelect(expr)
             is CallAgg           -> compileCallAgg(expr)
             is Parameter         -> compileParameter(expr)
@@ -947,6 +948,9 @@ internal class EvaluatingCompiler(
         return limitValue
     }
 
+    private fun compileWith(withExpr: With) : ThunkEnv {
+        TODO("not yet implemented")
+    }
 
     private fun compileSelect(selectExpr: Select): ThunkEnv {
         selectExpr.orderBy?.let {

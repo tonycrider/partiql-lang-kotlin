@@ -43,7 +43,9 @@ class CompilerTest {
         val ast = parser.parse(inputs)
 
         val exception = assertThrows<CompilerException> { compiler.compile(ast) }
-        assertEquals(expectedErrorMessage, exception.message)
+
+        // The replace() call allows for directory separator variations between Windows and Linux...
+        assertEquals(expectedErrorMessage.replace("\\", "/"), exception.message.replace("\\", "/"))
     }
 
     @Test

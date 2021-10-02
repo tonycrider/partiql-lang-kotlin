@@ -16,6 +16,7 @@ abstract class BaseExampleTest {
 
         example(PrintStream(outBuffer)).run()
 
-        Assert.assertEquals(expected, outBuffer.toString("UTF-8"))
+        // The replace() call allows for line separator variations between Windows and Linux...
+        Assert.assertEquals(expected, outBuffer.toString("UTF-8").replace(System.lineSeparator(), "\n"))
     }
 }

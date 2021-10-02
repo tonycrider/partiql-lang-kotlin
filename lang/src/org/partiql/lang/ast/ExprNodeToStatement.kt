@@ -10,9 +10,9 @@ import org.partiql.pig.runtime.asPrimitive
 /** Converts an [ExprNode] to a [PartiqlAst.statement]. */
 fun ExprNode.toAstStatement(): PartiqlAst.Statement {
     val node = this
-    return when(node) {
+    return when (node) {
         is Literal, is LiteralMissing, is VariableReference, is Parameter, is NAry, is CallAgg,
-        is Typed, is Path, is SimpleCase, is SearchedCase, is Select, is Struct, is DateTimeType,
+        is Typed, is Path, is SimpleCase, is SearchedCase, is With, is Select, is Struct, is DateTimeType,
         is Seq -> PartiqlAst.build { query(toAstExpr()) }
 
         is DataManipulation -> node.toAstDml()
@@ -26,7 +26,7 @@ fun ExprNode.toAstStatement(): PartiqlAst.Statement {
 internal fun PartiQlMetaContainer.toIonElementMetaContainer(): IonElementMetaContainer =
     com.amazon.ionelement.api.metaContainerOf(map { it.tag to it })
 
-private fun SymbolicName.toSymbolPrimitive() : SymbolPrimitive =
+private fun SymbolicName.toSymbolPrimitive(): SymbolPrimitive =
     SymbolPrimitive(this.name, this.metas.toIonElementMetaContainer())
 
 private fun ExprNode.toAstDdl(): PartiqlAst.Statement {
@@ -34,20 +34,26 @@ private fun ExprNode.toAstDdl(): PartiqlAst.Statement {
     val metas = metas.toIonElementMetaContainer()
 
     return PartiqlAst.build {
-        when(thiz) {
+        when (thiz) {
             is Literal, is LiteralMissing, is VariableReference, is Parameter, is NAry, is CallAgg, is Typed,
-            is Path, is SimpleCase, is SearchedCase, is Select, is Struct, is Seq, is DateTimeType,
+            is Path, is SimpleCase, is SearchedCase, is With, is Select, is Struct, is Seq, is DateTimeType,
             is DataManipulation, is Exec -> error("Can't convert ${thiz.javaClass} to PartiqlAst.ddl")
 
             is CreateTable -> ddl(createTable(thiz.tableName), metas)
-            is CreateIndex -> ddl(createIndex(identifier(thiz.tableName, caseSensitive()), thiz.keys.map { it.toAstExpr() }), metas)
+            is CreateIndex -> ddl(
+                createIndex(
+                    identifier(thiz.tableName, caseSensitive()),
+                    thiz.keys.map { it.toAstExpr() }), metas
+            )
             is DropIndex ->
                 ddl(
                     dropIndex(
                         // case-sensitivity of table names cannot be represented with ExprNode.
                         identifier(thiz.tableName, caseSensitive()),
-                        identifier(thiz.identifier.id, thiz.identifier.case.toAstCaseSensitivity())),
-                    metas)
+                        identifier(thiz.identifier.id, thiz.identifier.case.toAstCaseSensitivity())
+                    ),
+                    metas
+                )
             is DropTable ->
                 // case-sensitivity of table names cannot be represented with ExprNode.
                 ddl(dropTable(identifier(thiz.tableName, caseSensitive())), metas)
@@ -55,7 +61,7 @@ private fun ExprNode.toAstDdl(): PartiqlAst.Statement {
     }
 }
 
-private fun ExprNode.toAstExec() : PartiqlAst.Statement {
+private fun ExprNode.toAstExec(): PartiqlAst.Statement {
     val node = this
     val metas = metas.toIonElementMetaContainer()
 
@@ -76,11 +82,16 @@ fun ExprNode.toAstExpr(): PartiqlAst.Expr {
         when (node) {
             is Literal -> lit(node.ionValue.toIonElement(), metas)
             is LiteralMissing -> missing(metas)
-            is VariableReference -> id(node.id, node.case.toAstCaseSensitivity(), node.scopeQualifier.toAstScopeQualifier(), metas)
+            is VariableReference -> id(
+                node.id,
+                node.case.toAstCaseSensitivity(),
+                node.scopeQualifier.toAstScopeQualifier(),
+                metas
+            )
             is Parameter -> parameter(node.position.toLong(), metas)
             is NAry -> {
                 val args = node.args.map { it.toAstExpr() }
-                when(node.op) {
+                when (node.op) {
                     NAryOp.ADD -> plus(args, metas)
                     NAryOp.SUB -> minus(args, metas)
                     NAryOp.MUL -> times(args, metas)
@@ -124,7 +135,7 @@ fun ExprNode.toAstExpr(): PartiqlAst.Expr {
                 callAgg_(node.setQuantifier.toAstSetQuantifier(), symbol1Primitive, node.arg.toAstExpr(), metas)
             }
             is Typed ->
-                when(node.op) {
+                when (node.op) {
                     TypedOp.CAST -> cast(node.expr.toAstExpr(), node.type.toAstType(), metas)
                     TypedOp.IS -> isType(node.expr.toAstExpr(), node.type.toAstType(), metas)
                 }
@@ -134,12 +145,25 @@ fun ExprNode.toAstExpr(): PartiqlAst.Expr {
                     node.valueExpr.toAstExpr(),
                     exprPairList(node.whenClauses.map { exprPair(it.valueExpr.toAstExpr(), it.thenExpr.toAstExpr()) }),
                     node.elseExpr?.toAstExpr(),
-                    metas)
+                    metas
+                )
             is SearchedCase ->
                 searchedCase(
                     exprPairList(node.whenClauses.map { exprPair(it.condition.toAstExpr(), it.thenExpr.toAstExpr()) }),
                     node.elseExpr?.toAstExpr(),
-                    metas)
+                    metas
+                )
+            is With ->
+                with(
+                    hierarchy = node.hierarchy.let {
+                        when (it) {
+                            QueryHierarchy.ORDINARY -> null
+                            QueryHierarchy.RECURSIVE -> recursive()
+                        }
+                    },
+                    bindings = node.bindings.toAstWithBindings(),
+                    select = node.select.toAstExpr()
+                )
             is Select ->
                 select(
                     // Only set setq if its distinct since setting it causes it to be added to the s-expressions
@@ -160,10 +184,11 @@ fun ExprNode.toAstExpr(): PartiqlAst.Expr {
                     group = node.groupBy?.toAstGroupSpec(),
                     having = node.having?.toAstExpr(),
                     limit = node.limit?.toAstExpr(),
-                    metas = metas)
+                    metas = metas
+                )
             is Struct -> struct(node.fields.map { exprPair(it.name.toAstExpr(), it.expr.toAstExpr()) }, metas)
             is Seq ->
-                when(node.type) {
+                when (node.type) {
                     SeqType.LIST -> list(node.values.map { it.toAstExpr() }, metas)
                     SeqType.SEXP -> sexp(node.values.map { it.toAstExpr() }, metas)
                     SeqType.BAG -> bag(node.values.map { it.toAstExpr() }, metas)
@@ -215,9 +240,10 @@ private fun GroupBy.toAstGroupSpec(): PartiqlAst.GroupBy =
             this@toAstGroupSpec.grouping.toAstGroupStrategy(),
             groupKeyList(this@toAstGroupSpec.groupByItems.map {
                 val keyMetas = it.asName?.metas?.toIonElementMetaContainer() ?: emptyMetaContainer()
-                groupKey_(it.expr.toAstExpr(), it.asName?.name?.asPrimitive(keyMetas) )
+                groupKey_(it.expr.toAstExpr(), it.asName?.name?.asPrimitive(keyMetas))
             }),
-            this@toAstGroupSpec.groupName?.name?.asPrimitive(this@toAstGroupSpec.groupName.metas.toIonElementMetaContainer()))
+            this@toAstGroupSpec.groupName?.name?.asPrimitive(this@toAstGroupSpec.groupName.metas.toIonElementMetaContainer())
+        )
     }
 
 
@@ -249,6 +275,48 @@ private fun ScopeQualifier.toAstScopeQualifier(): PartiqlAst.ScopeQualifier {
     }
 }
 
+private fun QueryHierarchy.toAstQueryHierarchy(): PartiqlAst.QueryHierarchy {
+    val thiz = this
+    return PartiqlAst.build {
+        when (thiz) {
+            QueryHierarchy.ORDINARY -> ordinary()
+            QueryHierarchy.RECURSIVE -> recursive()
+        }
+    }
+}
+
+private fun QueryMaterialization.toAstQueryMaterialization(): PartiqlAst.QueryMaterialization {
+    val thiz = this
+    return PartiqlAst.build {
+        when (thiz) {
+            QueryMaterialization.NOT_MATERIALIZED -> notMaterialized()
+            QueryMaterialization.MATERIALIZED -> materialized()
+        }
+    }
+}
+
+private fun WithBindings.toAstWithBindings(): PartiqlAst.WithBindings {
+    val thiz = this
+    return PartiqlAst.build {
+        withBindings(
+            thiz.bindings.map {
+                it.toAstWithBinding()
+            }
+        )
+    }
+}
+
+private fun WithBinding.toAstWithBinding(): PartiqlAst.WithBinding {
+    val thiz = this
+    return PartiqlAst.build {
+        withBinding(
+            materialization = thiz.materialization.toAstQueryMaterialization(),
+            select = thiz.select.toAstExpr(),
+            name = thiz.name.name
+        )
+    }
+}
+
 private fun SetQuantifier.toAstSetQuantifier(): PartiqlAst.SetQuantifier {
     val thiz = this
     return PartiqlAst.build {
@@ -262,18 +330,17 @@ private fun SetQuantifier.toAstSetQuantifier(): PartiqlAst.SetQuantifier {
 private fun SelectProjection.toAstSelectProject(): PartiqlAst.Projection {
     val thiz = this
     return PartiqlAst.build {
-        when(thiz) {
+        when (thiz) {
             is SelectProjectionValue -> projectValue(thiz.expr.toAstExpr())
             is SelectProjectionList -> {
-                if(thiz.items.any { it is SelectListItemStar }) {
-                    if(thiz.items.size > 1) error("More than one select item when SELECT * was present.")
+                if (thiz.items.any { it is SelectListItemStar }) {
+                    if (thiz.items.size > 1) error("More than one select item when SELECT * was present.")
                     val metas = (thiz.items[0] as SelectListItemStar).metas.toIonElementMetaContainer()
                     projectStar(metas)
-                }
-                else
+                } else
                     projectList(
                         thiz.items.map {
-                            when(it) {
+                            when (it) {
                                 is SelectListItemExpr -> projectExpr_(it.expr.toAstExpr(), it.asName?.toPrimitive())
                                 is SelectListItemProjectAll -> projectAll(it.expr.toAstExpr())
                                 is SelectListItemStar -> error("this should happen due to `when` branch above.")
@@ -295,7 +362,8 @@ private fun FromSource.toAstFromSource(): PartiqlAst.FromSource {
                 thiz.variables.asName?.toPrimitive(),
                 thiz.variables.atName?.toPrimitive(),
                 thiz.variables.byName?.toPrimitive(),
-                thiz.expr.metas.toIonElementMetaContainer())
+                thiz.expr.metas.toIonElementMetaContainer()
+            )
             is FromSourceJoin -> {
                 val jt = when (thiz.joinOp) {
                     JoinOp.INNER -> inner()
@@ -308,14 +376,16 @@ private fun FromSource.toAstFromSource(): PartiqlAst.FromSource {
                     thiz.leftRef.toAstFromSource(),
                     thiz.rightRef.toAstFromSource(),
                     if (thiz.metas.hasMeta(IsImplictJoinMeta.TAG)) null else thiz.condition.toAstExpr(),
-                    metas = metas)
+                    metas = metas
+                )
             }
             is FromSourceUnpivot -> unpivot_(
                 thiz.expr.toAstExpr(),
                 thiz.variables.asName?.toPrimitive(),
                 thiz.variables.atName?.toPrimitive(),
                 thiz.variables.byName?.toPrimitive(),
-                thiz.metas.toIonElementMetaContainer())
+                thiz.metas.toIonElementMetaContainer()
+            )
         }
     }
 }
@@ -345,7 +415,7 @@ private fun PathComponent.toAstPathStep(): PartiqlAst.PathStep {
 private fun OnConflict.toAstOnConflict(): PartiqlAst.OnConflict {
     val thiz = this
     return PartiqlAst.build {
-        when(thiz.conflictAction) {
+        when (thiz.conflictAction) {
             ConflictAction.DO_NOTHING -> onConflict(thiz.condition.toAstExpr(), doNothing())
         }
     }
@@ -362,7 +432,8 @@ private fun DataManipulation.toAstDml(): PartiqlAst.Statement {
             thiz.from?.toAstFromSource(),
             thiz.where?.toAstExpr(),
             thiz.returning?.toAstReturningExpr(),
-            thiz.metas.toIonElementMetaContainer())
+            thiz.metas.toIonElementMetaContainer()
+        )
     }
 }
 
@@ -372,27 +443,33 @@ private fun DmlOpList.toAstDmlOps(dml: DataManipulation): PartiqlAst.DmlOpList =
             this@toAstDmlOps.ops.map {
                 it.toAstDmlOp(dml)
             },
-            metas = dml.metas.toIonElementMetaContainer())
+            metas = dml.metas.toIonElementMetaContainer()
+        )
     }
+
 private fun DataManipulationOperation.toAstDmlOp(dml: DataManipulation): PartiqlAst.DmlOp =
     PartiqlAst.build {
         when (val thiz = this@toAstDmlOp) {
             is InsertOp ->
                 insert(
                     thiz.lvalue.toAstExpr(),
-                    thiz.values.toAstExpr())
+                    thiz.values.toAstExpr()
+                )
             is InsertValueOp ->
                 insertValue(
                     thiz.lvalue.toAstExpr(),
                     thiz.value.toAstExpr(),
                     thiz.position?.toAstExpr(),
                     thiz.onConflict?.toAstOnConflict(),
-                    dml.metas.toIonElementMetaContainer())
+                    dml.metas.toIonElementMetaContainer()
+                )
             is AssignmentOp ->
                 set(
                     assignment(
                         thiz.assignment.lvalue.toAstExpr(),
-                        thiz.assignment.rvalue.toAstExpr()))
+                        thiz.assignment.rvalue.toAstExpr()
+                    )
+                )
             is RemoveOp -> remove(thiz.lvalue.toAstExpr())
             DeleteOp -> delete()
         }
@@ -435,7 +512,7 @@ private fun DataType.toAstType(): PartiqlAst.Type {
     val arg1 = thiz.args.getOrNull(0)?.toLong()
     val arg2 = thiz.args.getOrNull(1)?.toLong()
     return PartiqlAst.build {
-        when(thiz.sqlDataType) {
+        when (thiz.sqlDataType) {
             SqlDataType.MISSING -> missingType(metas)
             SqlDataType.NULL -> nullType(metas)
             SqlDataType.BOOLEAN -> booleanType(metas)

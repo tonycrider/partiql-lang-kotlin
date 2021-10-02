@@ -109,6 +109,12 @@
             (call_agg setq::set_quantifier func_name::symbol arg::expr)
             (cast value::expr as_type::type)
 
+            // `WITH` and its parts.
+            (with
+                (hierarchy (? query_hierarchy))
+                (bindings with_bindings)
+                (select expr))
+
             // `SELECT` and its parts.
             // Once variadic record element support is added (https://github.com/partiql/partiql-ir-generator/issues/44),
             // the let clauses may be modeled directly using let_binding.
@@ -135,6 +141,10 @@
             (path_wildcard)
             // `someRoot.*`
             (path_unpivot))
+
+        (product with_bindings bindings::(* with_binding 1))
+
+        (product with_binding select::expr name::symbol materialization::(? query_materialization))
 
         // Indicates the type of projection in a SFW query.
         (sum projection
@@ -229,6 +239,12 @@
             (unqualified)
             // Skip the globals first check within FROM sources and resolve starting with the local scope.
             (locals_first))
+
+        // Indicates if the bindings in a CTE are ordinary (non-recursive) queries or recursive queries.
+        (sum query_hierarchy (ordinary) (recursive))
+
+        // Indicates if a CTE select expression should be materialized or not materialized
+        (sum query_materialization (not_materialized) (materialized))
 
         // Indicates if a set should be reduced to its distinct elements or not.
         (sum set_quantifier (all) (distinct))

@@ -154,6 +154,7 @@ internal val DATE_PART_KEYWORDS: Set<String> = DatePart.values()
     "local",
     "lower",
     "match",
+    "materialized",
     "max",
     "min",
     "module",
@@ -191,6 +192,7 @@ internal val DATE_PART_KEYWORDS: Set<String> = DatePart.values()
     "public",
     "read",
     "real",
+    "recursive",
     "references",
     "relative",
     "restrict",
@@ -396,6 +398,13 @@ internal val DATE_PART_KEYWORDS: Set<String> = DatePart.values()
     "like", "not_like"        // optionally a ternary operator when `ESCAPE` is present
 )
 
+/* Operators that are query specific operators used to parse sub-expressions of queries */
+@JvmField internal val QUERY_OPERATORS = setOf(
+    "union", "union_all",
+    "except", "except all",
+    "intersect", "intersect_all"
+)
+
 /** Binary operators with verbatim lexical token equivalents. */
 @JvmField internal val SINGLE_LEXEME_BINARY_OPERATORS = setOf(
     "+", "-", "/", "%", "*",
@@ -408,6 +417,7 @@ internal val DATE_PART_KEYWORDS: Set<String> = DatePart.values()
 
 /** Tokens comprising multiple lexemes (**happens before** keyword aliasing). */
 @JvmField internal val MULTI_LEXEME_TOKEN_MAP = mapOf(
+    listOf("not", "materialized")       to ("not_materialized" to KEYWORD),
     listOf("not", "in")                 to ("not_in" to OPERATOR),
     listOf("is", "not")                 to ("is_not" to OPERATOR),
     listOf("not", "between")            to ("not_between" to OPERATOR),

@@ -243,29 +243,33 @@ class SqlParserTest : SqlParserTestBase() {
     @Test
     fun callTrimSingleArgument() = assertExpression(
         "trim('test')",
-        "(call trim (lit \"test\"))")
-
+        "(call trim (lit \"test\"))"
+    )
 
 
     @Test
     fun callTrimTwoArgumentsDefaultSpecification() = assertExpression(
         "trim(' ' from 'test')",
-        "(call trim (lit \" \") (lit \"test\"))")
+        "(call trim (lit \" \") (lit \"test\"))"
+    )
 
     @Test
     fun callTrimTwoArgumentsUsingBoth() = assertExpression(
         "trim(both from 'test')",
-        "(call trim (lit both) (lit \"test\"))")
+        "(call trim (lit both) (lit \"test\"))"
+    )
 
     @Test
     fun callTrimTwoArgumentsUsingLeading() = assertExpression(
         "trim(leading from 'test')",
-        "(call trim (lit leading) (lit \"test\"))")
+        "(call trim (lit leading) (lit \"test\"))"
+    )
 
     @Test
     fun callTrimTwoArgumentsUsingTrailing() = assertExpression(
         "trim(trailing from 'test')",
-        "(call trim (lit trailing) (lit \"test\"))")
+        "(call trim (lit trailing) (lit \"test\"))"
+    )
 
     //****************************************
     // Unary operators
@@ -455,6 +459,7 @@ class SqlParserTest : SqlParserTestBase() {
            (path_expr (lit "b") (case_insensitive))
            (path_expr (lit "c") (case_insensitive)))""".trimMargin()
     )
+
     @Test
     fun dot_case_3_insensitive_components() = assertExpression(
         "a.b.c.d",
@@ -496,6 +501,7 @@ class SqlParserTest : SqlParserTestBase() {
         """(path (id a (case_insensitive) (unqualified))
            (path_expr (lit 5) (case_sensitive)))""".trimMargin()
     )
+
     @Test
     fun pathWith3SquareBrackets() = assertExpression(
         """a[5]['b'][(a + 3)]""",
@@ -814,7 +820,6 @@ class SqlParserTest : SqlParserTestBase() {
     )
 
 
-
     //****************************************
     // LIKE operator
     //****************************************
@@ -959,7 +964,8 @@ class SqlParserTest : SqlParserTestBase() {
         assertExpression(
             templateSql.replace("<op>", operation),
             templateExpectedV0.replace("<op>", operation),
-            templateExpectedPartiqlAst.replace("<op>", operation))
+            templateExpectedPartiqlAst.replace("<op>", operation)
+        )
 
     }
 
@@ -1089,7 +1095,60 @@ class SqlParserTest : SqlParserTestBase() {
     @Test
     fun parameterExpression() = assertExpression(
         "?",
-        "(parameter 1)")
+        "(parameter 1)"
+    )
+
+    //****************************************
+    // WITH
+    //****************************************
+    @Test
+    fun withWithSingleBinding() = assertExpression(
+        "WITH temp AS (SELECT a FROM table1) SELECT a FROM temp",
+        "(with (bindings (as temp (select (project (list (id a case_insensitive))) (from (id table1 case_insensitive))))) (select (project (list (id a case_insensitive))) (from (id temp case_insensitive))))",
+        "(with (bindings (with_bindings (with_binding (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null))) (from (scan (id table1 (case_insensitive) (unqualified)) null null null))) temp (materialized)))) (select (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null))) (from (scan (id temp (case_insensitive) (unqualified)) null null null)))))"
+    )
+
+    @Test
+    fun withWithSingleQuotedIdentifierBinding() = assertExpression(
+        "WITH \"temp quoted\" AS (SELECT a FROM table1) SELECT a FROM \"temp quoted\"",
+        "(with (bindings (as 'temp quoted' (select (project (list (id a case_insensitive))) (from (id table1 case_insensitive))))) (select (project (list (id a case_insensitive))) (from (id 'temp quoted' case_sensitive))))",
+        "(with (bindings (with_bindings (with_binding (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null))) (from (scan (id table1 (case_insensitive) (unqualified)) null null null))) 'temp quoted' (materialized)))) (select (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null))) (from (scan (id 'temp quoted' (case_sensitive) (unqualified)) null null null)))))"
+    )
+
+    @Test
+    fun withWithMultipleBindings() = assertExpression(
+        "WITH temp1 AS (SELECT k, a FROM table1), temp2 AS (SELECT k, b FROM table2) SELECT temp1.a, temp2.b FROM temp1 INNER JOIN temp2 ON temp1.k = temp2.k",
+        "(with (bindings (as temp1 (select (project (list (id k case_insensitive) (id a case_insensitive))) (from (id table1 case_insensitive)))) (as temp2 (select (project (list (id k case_insensitive) (id b case_insensitive))) (from (id table2 case_insensitive))))) (select (project (list (path (id temp1 case_insensitive) (case_insensitive (lit \"a\"))) (path (id temp2 case_insensitive) (case_insensitive (lit \"b\"))))) (from (inner_join (id temp1 case_insensitive) (id temp2 case_insensitive) (= (path (id temp1 case_insensitive) (case_insensitive (lit \"k\"))) (path (id temp2 case_insensitive) (case_insensitive (lit \"k\"))))))))",
+        "(with (bindings (with_bindings (with_binding (select (project (project_list (project_expr (id k (case_insensitive) (unqualified)) null) (project_expr (id a (case_insensitive) (unqualified)) null))) (from (scan (id table1 (case_insensitive) (unqualified)) null null null))) temp1 (materialized)) (with_binding (select (project (project_list (project_expr (id k (case_insensitive) (unqualified)) null) (project_expr (id b (case_insensitive) (unqualified)) null))) (from (scan (id table2 (case_insensitive) (unqualified)) null null null))) temp2 (materialized)))) (select (select (project (project_list (project_expr (path (id temp1 (case_insensitive) (unqualified)) (path_expr (lit \"a\") (case_insensitive))) null) (project_expr (path (id temp2 (case_insensitive) (unqualified)) (path_expr (lit \"b\") (case_insensitive))) null))) (from (join (inner) (scan (id temp1 (case_insensitive) (unqualified)) null null null) (scan (id temp2 (case_insensitive) (unqualified)) null null null) (eq (path (id temp1 (case_insensitive) (unqualified)) (path_expr (lit \"k\") (case_insensitive))) (path (id temp2 (case_insensitive) (unqualified)) (path_expr (lit \"k\") (case_insensitive)))))))))"
+    )
+
+    @Test
+    fun withWithBindingNotMaterialized() = assertExpression(
+        "WITH temp AS NOT MATERIALIZED (SELECT a FROM table1) SELECT a FROM temp",
+        "(with (bindings (as_not_materialized temp (select (project (list (id a case_insensitive))) (from (id table1 case_insensitive))))) (select (project (list (id a case_insensitive))) (from (id temp case_insensitive))))",
+        "(with (bindings (with_bindings (with_binding (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null))) (from (scan (id table1 (case_insensitive) (unqualified)) null null null))) temp (not_materialized)))) (select (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null))) (from (scan (id temp (case_insensitive) (unqualified)) null null null)))))"
+    )
+
+    @Test
+    fun withWithRecursiveBinding() = assertExpression(
+        "WITH RECURSIVE temp AS (SELECT a, b, 1 AS depth FROM table1 UNION ALL SELECT table1.a, table1.b, depth + 1 FROM table1, temp WHERE table1.a = temp.b AND depth < 4) SELECT a FROM temp",
+        "(with (bindings_recursive (as temp (union_all (select (project (list (id a case_insensitive) (id b case_insensitive) (as depth (lit 1)))) (from (id table1 case_insensitive))) (select (project (list (path (id table1 case_insensitive) (case_insensitive (lit \"a\"))) (path (id table1 case_insensitive) (case_insensitive (lit \"b\"))) (+ (id depth case_insensitive) (lit 1)))) (from (inner_join (id table1 case_insensitive) (id temp case_insensitive))) (where (and (= (path (id table1 case_insensitive) (case_insensitive (lit \"a\"))) (path (id temp case_insensitive) (case_insensitive (lit \"b\")))) (< (id depth case_insensitive) (lit 4)))))))) (select (project (list (id a case_insensitive))) (from (id temp case_insensitive))))",
+        "(with (hierarchy (recursive)) (bindings (with_bindings (with_binding (union (all) (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null) (project_expr (id b (case_insensitive) (unqualified)) null) (project_expr (lit 1) depth))) (from (scan (id table1 (case_insensitive) (unqualified)) null null null))) (select (project (project_list (project_expr (path (id table1 (case_insensitive) (unqualified)) (path_expr (lit \"a\") (case_insensitive))) null) (project_expr (path (id table1 (case_insensitive) (unqualified)) (path_expr (lit \"b\") (case_insensitive))) null) (project_expr (plus (id depth (case_insensitive) (unqualified)) (lit 1)) null))) (from (join (inner) (scan (id table1 (case_insensitive) (unqualified)) null null null) (scan (id temp (case_insensitive) (unqualified)) null null null) null)) (where (and (eq (path (id table1 (case_insensitive) (unqualified)) (path_expr (lit \"a\") (case_insensitive))) (path (id temp (case_insensitive) (unqualified)) (path_expr (lit \"b\") (case_insensitive)))) (lt (id depth (case_insensitive) (unqualified)) (lit 4)))))) temp (materialized)))) (select (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null))) (from (scan (id temp (case_insensitive) (unqualified)) null null null)))))"
+    )
+
+    @Test
+    fun withWithChainedWithExpression() = assertExpression(
+        "WITH temp AS (SELECT a, b FROM table1) WITH temp2 AS (SELECT a FROM temp) SELECT a FROM temp2",
+        "(with (bindings (as temp (select (project (list (id a case_insensitive) (id b case_insensitive))) (from (id table1 case_insensitive))))) (with (bindings (as temp2 (select (project (list (id a case_insensitive))) (from (id temp case_insensitive))))) (select (project (list (id a case_insensitive))) (from (id temp2 case_insensitive)))))",
+        "(with (bindings (with_bindings (with_binding (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null) (project_expr (id b (case_insensitive) (unqualified)) null))) (from (scan (id table1 (case_insensitive) (unqualified)) null null null))) temp (materialized)))) (select (with (bindings (with_bindings (with_binding (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null))) (from (scan (id temp (case_insensitive) (unqualified)) null null null))) temp2 (materialized)))) (select (select (project (project_list (project_expr (id a (case_insensitive) (unqualified)) null))) (from (scan (id temp2 (case_insensitive) (unqualified)) null null null)))))))"
+    )
+
+    @Test
+    fun withWithNestedWithExpression() = assertExpression(
+        "WITH temp AS (WITH temp1 AS (SELECT name FROM table1) SELECT name FROM temp1) SELECT name from TEMP",
+        "(with (bindings (as temp (with (bindings (as temp1 (select (project (list (id name case_insensitive))) (from (id table1 case_insensitive))))) (select (project (list (id name case_insensitive))) (from (id temp1 case_insensitive)))))) (select (project (list (id name case_insensitive))) (from (id TEMP case_insensitive))))",
+        "(with (bindings (with_bindings (with_binding (with (bindings (with_bindings (with_binding (select (project (project_list (project_expr (id name (case_insensitive) (unqualified)) null))) (from (scan (id table1 (case_insensitive) (unqualified)) null null null))) temp1 (materialized)))) (select (select (project (project_list (project_expr (id name (case_insensitive) (unqualified)) null))) (from (scan (id temp1 (case_insensitive) (unqualified)) null null null))))) temp (materialized)))) (select (select (project (project_list (project_expr (id name (case_insensitive) (unqualified)) null))) (from (scan (id TEMP (case_insensitive) (unqualified)) null null null)))))"
+    )
 
     //****************************************
     // SELECT
@@ -1664,8 +1723,8 @@ class SqlParserTest : SqlParserTestBase() {
     //****************************************
     @Test
     fun orderBySingleId() = assertExpression(
-            "SELECT a FROM tb WHERE hk = 1 ORDER BY rk1",
-            """(select 
+        "SELECT a FROM tb WHERE hk = 1 ORDER BY rk1",
+        """(select 
             (project 
                 (project_list 
                     (project_expr 
@@ -1689,8 +1748,8 @@ class SqlParserTest : SqlParserTestBase() {
 
     @Test
     fun orderByMultipleIds() = assertExpression(
-            "SELECT a FROM tb WHERE hk = 1 ORDER BY rk1, rk2, rk3",
-            """(select 
+        "SELECT a FROM tb WHERE hk = 1 ORDER BY rk1, rk2, rk3",
+        """(select 
             (project 
                 (project_list 
                     (project_expr 
@@ -1720,8 +1779,8 @@ class SqlParserTest : SqlParserTestBase() {
 
     @Test
     fun orderBySingleIdDESC() = assertExpression(
-            "SELECT a FROM tb WHERE hk = 1 ORDER BY rk1 DESC",
-            """(select 
+        "SELECT a FROM tb WHERE hk = 1 ORDER BY rk1 DESC",
+        """(select 
             (project 
                 (project_list 
                     (project_expr 
@@ -1745,8 +1804,8 @@ class SqlParserTest : SqlParserTestBase() {
 
     @Test
     fun orderByMultipleIdsWithOrderingSpec() = assertExpression(
-            "SELECT a FROM tb WHERE hk = 1 ORDER BY rk1 ASC, rk2 DESC",
-            """(select 
+        "SELECT a FROM tb WHERE hk = 1 ORDER BY rk1 ASC, rk2 DESC",
+        """(select 
             (project 
                 (project_list 
                     (project_expr 
@@ -1770,6 +1829,7 @@ class SqlParserTest : SqlParserTestBase() {
                         (desc)))))
         """
     )
+
     //****************************************
     // GROUP BY and GROUP PARTIAL BY
     //****************************************
@@ -2080,8 +2140,8 @@ class SqlParserTest : SqlParserTestBase() {
     @Test
     @Ignore
     fun fromInsertValueReturningDml() = assertExpression(
-            "FROM x INSERT INTO foo VALUE 1 RETURNING ALL OLD foo",
-            """
+        "FROM x INSERT INTO foo VALUE 1 RETURNING ALL OLD foo",
+        """
           (dml
             (dml_op_list
               (insert_value
@@ -2229,7 +2289,8 @@ class SqlParserTest : SqlParserTestBase() {
               )
             )
           )
-        """)
+        """
+    )
 
     @Test
     fun insertValueAtReturningDml() = assertExpression(
@@ -2244,7 +2305,8 @@ class SqlParserTest : SqlParserTestBase() {
                         (returning_elem 
                             (all_old) 
                             (returning_column (id foo (case_insensitive) (unqualified)))))))
-        """)
+        """
+    )
 
     @Test
     fun insertValueAtMultiReturningTwoColsDml() = assertExpression(
@@ -2259,12 +2321,13 @@ class SqlParserTest : SqlParserTestBase() {
                         (returning_elem 
                             (all_old) 
                             (returning_column (id a (case_insensitive) (unqualified)))))))
-        """)
+        """
+    )
 
     @Test
     fun insertValueAtMultiReturningThreeColsDml() = assertExpression(
-            "INSERT INTO foo VALUE 1 AT bar RETURNING MODIFIED OLD bar, MODIFIED NEW bar, ALL NEW *",
-            """
+        "INSERT INTO foo VALUE 1 AT bar RETURNING MODIFIED OLD bar, MODIFIED NEW bar, ALL NEW *",
+        """
             (dml 
                 (operations 
                     (dml_op_list (insert_value (id foo (case_insensitive) (unqualified)) 
@@ -2280,12 +2343,13 @@ class SqlParserTest : SqlParserTestBase() {
                         (returning_elem 
                             (all_new) 
                             (returning_wildcard)))))
-        """)
+        """
+    )
 
     @Test
     fun insertValueAtOnConflictDml() = assertExpression(
-            "INSERT INTO foo VALUE 1 AT bar ON CONFLICT WHERE a DO NOTHING",
-            """
+        "INSERT INTO foo VALUE 1 AT bar ON CONFLICT WHERE a DO NOTHING",
+        """
           (dml
             (operations (dml_op_list
               (insert_value
@@ -2299,7 +2363,8 @@ class SqlParserTest : SqlParserTestBase() {
               )
             ))
           )
-        """)
+        """
+    )
 
     @Test
     fun insertValueAtOnConflictReturningDml() = assertExpression(
@@ -2319,12 +2384,13 @@ class SqlParserTest : SqlParserTestBase() {
                 (returning_elem 
                     (all_old) 
                     (returning_column (id foo (case_insensitive) (unqualified)))))))
-        """)
+        """
+    )
 
     @Test
     fun insertValueOnConflictDml() = assertExpression(
-            "INSERT INTO foo VALUE 1 ON CONFLICT WHERE bar DO NOTHING",
-            """
+        "INSERT INTO foo VALUE 1 ON CONFLICT WHERE bar DO NOTHING",
+        """
           (dml
             (operations (dml_op_list
               (insert_value
@@ -2338,12 +2404,13 @@ class SqlParserTest : SqlParserTestBase() {
               )
             ))
           )
-        """)
+        """
+    )
 
     @Test
     fun insertValueOnConflictExpr1Dml() = assertExpression(
-            "INSERT INTO foo VALUE 1 ON CONFLICT WHERE hk=1 DO NOTHING",
-            """
+        "INSERT INTO foo VALUE 1 ON CONFLICT WHERE hk=1 DO NOTHING",
+        """
           (dml
             (operations (dml_op_list
               (insert_value
@@ -2357,12 +2424,13 @@ class SqlParserTest : SqlParserTestBase() {
               )
             ))
           )
-        """)
+        """
+    )
 
     @Test
     fun insertValueOnConflictExpr2Dml() = assertExpression(
-            "INSERT INTO foo VALUE 1 ON CONFLICT WHERE hk=1 and rk=1 DO NOTHING",
-            """
+        "INSERT INTO foo VALUE 1 ON CONFLICT WHERE hk=1 and rk=1 DO NOTHING",
+        """
           (dml
             (operations (dml_op_list
               (insert_value
@@ -2376,12 +2444,13 @@ class SqlParserTest : SqlParserTestBase() {
               )
             ))
           )
-        """)
+        """
+    )
 
     @Test
     fun insertValueOnConflictExpr3Dml() = assertExpression(
-            "INSERT INTO foo VALUE 1 ON CONFLICT WHERE hk BETWEEN 'a' and 'b' or rk = 'c' DO NOTHING",
-            """
+        "INSERT INTO foo VALUE 1 ON CONFLICT WHERE hk BETWEEN 'a' and 'b' or rk = 'c' DO NOTHING",
+        """
           (dml
             (operations (dml_op_list
               (insert_value
@@ -2395,12 +2464,13 @@ class SqlParserTest : SqlParserTestBase() {
               )
             ))
           )
-        """)
+        """
+    )
 
     @Test
     fun insertValueOnConflictExpr4Dml() = assertExpression(
-            "INSERT INTO foo VALUE 1 ON CONFLICT WHERE not hk = 'a' DO NOTHING",
-            """
+        "INSERT INTO foo VALUE 1 ON CONFLICT WHERE not hk = 'a' DO NOTHING",
+        """
           (dml
             (operations (dml_op_list
               (insert_value
@@ -2414,12 +2484,13 @@ class SqlParserTest : SqlParserTestBase() {
               )
             ))
           )
-        """)
+        """
+    )
 
     @Test
     fun insertValueOnConflictExpr5Dml() = assertExpression(
-            "INSERT INTO foo VALUE 1 ON CONFLICT WHERE attribute_exists(hk) DO NOTHING",
-            """
+        "INSERT INTO foo VALUE 1 ON CONFLICT WHERE attribute_exists(hk) DO NOTHING",
+        """
           (dml
             (operations (dml_op_list 
               (insert_value
@@ -2433,12 +2504,13 @@ class SqlParserTest : SqlParserTestBase() {
               )
             ))
           )
-        """)
+        """
+    )
 
     @Test
     fun insertValueOnConflictExpr6Dml() = assertExpression(
-            "INSERT INTO foo VALUE 1 ON CONFLICT WHERE not attribute_exists(hk) DO NOTHING",
-            """
+        "INSERT INTO foo VALUE 1 ON CONFLICT WHERE not attribute_exists(hk) DO NOTHING",
+        """
           (dml
             (operations (dml_op_list
               (insert_value
@@ -2452,7 +2524,8 @@ class SqlParserTest : SqlParserTestBase() {
               )
             ))
           )
-        """)
+        """
+    )
 
     @Test
     fun insertQueryDml() = assertExpression(
@@ -2488,8 +2561,8 @@ class SqlParserTest : SqlParserTestBase() {
     @Test
     @Ignore
     fun insertQueryReturningDml() = assertExpression(
-            "INSERT INTO foo SELECT y FROM bar RETURNING ALL NEW foo",
-            """
+        "INSERT INTO foo SELECT y FROM bar RETURNING ALL NEW foo",
+        """
           (dml
             (operations
               (dml_op_list
@@ -2737,7 +2810,8 @@ class SqlParserTest : SqlParserTestBase() {
                 (eq
                     (id a (case_insensitive) (unqualified))
                     (id b (case_insensitive) (unqualified)))))
-    """)
+    """
+    )
 
     @Test
     fun legacyUpdateComplexDml() = assertExpression(
@@ -2971,7 +3045,8 @@ class SqlParserTest : SqlParserTestBase() {
             (from (scan (id x (case_insensitive) (unqualified)) null null null))
             (where (eq (id a (case_insensitive) (unqualified)) (id b (case_insensitive) (unqualified))))
           )
-        """)
+        """
+    )
 
     @Test
     fun fromMultipleRemoveReturningDml() = assertExpression(
@@ -3396,8 +3471,8 @@ class SqlParserTest : SqlParserTestBase() {
 
     @Test
     fun updateWhereReturningPathDml() = assertExpression(
-            "UPDATE x SET k = 5, m = 6 WHERE a = b RETURNING MODIFIED OLD a.b",
-            """(dml 
+        "UPDATE x SET k = 5, m = 6 WHERE a = b RETURNING MODIFIED OLD a.b",
+        """(dml 
             (operations 
                 (dml_op_list 
                     (set (assignment (id k (case_insensitive) (unqualified)) (lit 5))) 
@@ -3497,8 +3572,8 @@ class SqlParserTest : SqlParserTestBase() {
 
     @Test
     fun deleteReturningDml() = assertExpression(
-    "DELETE FROM y RETURNING MODIFIED NEW a",
-    """
+        "DELETE FROM y RETURNING MODIFIED NEW a",
+        """
       (dml
         (operations (dml_op_list (delete)))
         (from (scan (id y (case_insensitive) (unqualified)) null null null))
@@ -3772,8 +3847,8 @@ class SqlParserTest : SqlParserTestBase() {
 
     @Test
     fun unionSelectPrecedence() = assertExpression(
-            "SELECT * FROM foo UNION SELECT * FROM bar",
-            """
+        "SELECT * FROM foo UNION SELECT * FROM bar",
+        """
         (union
             (select
                 (project
@@ -3788,7 +3863,7 @@ class SqlParserTest : SqlParserTestBase() {
                 (from
                     (id bar case_insensitive))))            
         """,
-            """
+        """
         (union
             (distinct)
             (select
@@ -3932,7 +4007,8 @@ class SqlParserTest : SqlParserTestBase() {
 
     @Test
     fun selectFromLetFunctionWithLiteralsTest() = assertExpression(
-        "SELECT x FROM table1 LET foo(42, 'bar') AS A") {
+        "SELECT x FROM table1 LET foo(42, 'bar') AS A"
+    ) {
         select(
             project = projectX,
             from = scan(id("table1")),
@@ -3942,7 +4018,8 @@ class SqlParserTest : SqlParserTestBase() {
 
     @Test
     fun selectFromLetFunctionWithVariablesTest() = assertExpression(
-        "SELECT x FROM table1 LET foo(table1) AS A") {
+        "SELECT x FROM table1 LET foo(table1) AS A"
+    ) {
         select(
             project = projectX,
             from = scan(id("table1")),
@@ -3955,47 +4032,60 @@ class SqlParserTest : SqlParserTestBase() {
     //****************************************
     @Test
     fun execNoArgs() = assertExpression(
-        "EXEC foo") {
+        "EXEC foo"
+    ) {
         exec("foo", emptyList())
     }
 
     @Test
     fun execOneStringArg() = assertExpression(
-        "EXEC foo 'bar'") {
+        "EXEC foo 'bar'"
+    ) {
         exec("foo", listOf(lit(ionString("bar"))))
     }
 
     @Test
     fun execOneIntArg() = assertExpression(
-        "EXEC foo 1") {
+        "EXEC foo 1"
+    ) {
         exec("foo", listOf(lit(ionInt(1))))
     }
 
     @Test
     fun execMultipleArg() = assertExpression(
-        "EXEC foo 'bar0', `1d0`, 2, [3]") {
-        exec("foo", listOf(lit(ionString("bar0")), lit(ionDecimal(Decimal.valueOf(1))), lit(ionInt(2)), list(lit(ionInt(3)))))
+        "EXEC foo 'bar0', `1d0`, 2, [3]"
+    ) {
+        exec(
+            "foo",
+            listOf(lit(ionString("bar0")), lit(ionDecimal(Decimal.valueOf(1))), lit(ionInt(2)), list(lit(ionInt(3))))
+        )
     }
 
     @Test
     fun execWithMissing() = assertExpression(
-        "EXEC foo MISSING") {
+        "EXEC foo MISSING"
+    ) {
         exec("foo", listOf(missing()))
     }
 
     @Test
     fun execWithBag() = assertExpression(
-        "EXEC foo <<1>>") {
+        "EXEC foo <<1>>"
+    ) {
         exec("foo", listOf(bag(lit(ionInt(1)))))
     }
 
     @Test
     fun execWithSelectQuery() = assertExpression(
-        "EXEC foo SELECT baz FROM bar") {
-        exec("foo", listOf(
-            select(
-                project = projectList(projectExpr(id("baz"))),
-                from = scan(id("bar"))
-            )))
+        "EXEC foo SELECT baz FROM bar"
+    ) {
+        exec(
+            "foo", listOf(
+                select(
+                    project = projectList(projectExpr(id("baz"))),
+                    from = scan(id("bar"))
+                )
+            )
+        )
     }
 }

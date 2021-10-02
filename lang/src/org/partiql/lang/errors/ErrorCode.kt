@@ -317,10 +317,30 @@ enum class ErrorCode(private val category: ErrorCategory,
         LOC_TOKEN,
         "expected identifier for alias"),
 
+    PARSE_EXPECTED_MATERIALIZED_AFTER_NOT(
+        ErrorCategory.PARSER,
+        LOC_TOKEN,
+        "expected materialized keyword after not"),
+
     PARSE_EXPECTED_AS_FOR_LET(
         ErrorCategory.PARSER,
         LOC_TOKEN,
         "expected AS for LET clause"),
+
+    PARSE_EXPECTED_AS_FOR_WITH(
+        ErrorCategory.PARSER,
+        LOC_TOKEN,
+        "expected AS for WITH list element"),
+
+    PARSE_EXPECTED_LEFT_PAREN_AFTER_AS(
+        ErrorCategory.PARSER,
+        LOC_TOKEN,
+        "expected ( after AS"),
+
+    PARSE_EXPECTED_RIGHT_PAREN_AFTER_AS_SELECT(
+        ErrorCategory.PARSER,
+        LOC_TOKEN,
+        "expected ) after select expression"),
 
     PARSE_UNSUPPORTED_CALL_WITH_STAR(
         ErrorCategory.PARSER,
